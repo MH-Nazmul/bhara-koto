@@ -1,0 +1,58 @@
+name: CI
+
+# Runs on every push and pull request, so the Actions tab always shows whether
+# main currently builds. The release workflow handles tagged builds.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch: # manual run from the Actions tab
+
+concurrency:
+  # A newer push to the same branch makes an in-flight run pointless.
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Analyze, test and build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true # caches the Flutter SDK and pub packages between runs
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      # `flutter analyze` exits non-zero on any issue, so this gates the build.
+      - name: Analyze
+        run: flutter analyze
+
+      - name: Test
+        run: flutter test
+
+      - name: Build debug APK
+        run: flutter build apk --debug
+
+      - name: Upload debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: bhara-koto-debug-apk
+          path: build/app/outputs/flutter-apk/app-debug.apk
+          retention-days: 14
+          if-no-files-found: error

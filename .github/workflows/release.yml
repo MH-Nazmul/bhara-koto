@@ -1,0 +1,180 @@
+name: Release
+
+# Push a tag to cut a release:  git tag v1.0.0 && git push origin v1.0.0
+# A manual run builds and uploads the same artifacts but publishes no Release,
+# because there is no tag to attach one to.
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build and publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # required to create the GitHub Release
+    env:
+      GRADLE_OPTS: '-Xmx4g'
+
+    steps:
+      - name: Checkout
+        # Full history so the changelog step can diff against the previous tag.
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      # Never ship a build that does not pass its own tests.
+      - name: Analyze and test
+        run: |
+          flutter analyze
+          flutter test
+
+      - name: Resolve version
+        id: version
+        run: |
+          if [ "$GITHUB_REF_TYPE" = "tag" ]; then
+            VERSION="${GITHUB_REF_NAME#v}"
+          else
+            # Manual run: fall back to pubspec, since GITHUB_REF_NAME would be
+            # a branch name and --build-name rejects that.
+            VERSION=$(grep -m1 '^version:' pubspec.yaml | sed 's/version: *//' | cut -d'+' -f1)
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Building version $VERSION (build ${{ github.run_number }})"
+
+      # Signs with the real upload key when the secrets exist, otherwise leaves
+      # key.properties absent so Gradle falls back to debug keys. That keeps the
+      # workflow green before you have a keystore — the APK just is not
+      # Play-Store publishable yet.
+      - name: Set up signing
+        id: signing
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+        run: |
+          if [ -z "$KEYSTORE_BASE64" ]; then
+            echo "signed=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::No KEYSTORE_BASE64 secret set — building with debug keys. Not publishable to Play."
+            exit 0
+          fi
+          echo "$KEYSTORE_BASE64" | base64 --decode > android/app/upload-keystore.jks
+          cat > android/key.properties <<EOF
+          storePassword=$KEYSTORE_PASSWORD
+          keyPassword=$KEY_PASSWORD
+          keyAlias=$KEY_ALIAS
+          storeFile=upload-keystore.jks
+          EOF
+          echo "signed=true" >> "$GITHUB_OUTPUT"
+          echo "Release keystore installed."
+
+      # --obfuscate renames Dart symbols in the shipped binary and
+      # --split-debug-info strips the symbol table out to build/debug-info,
+      # which is uploaded below. Without those symbols a production crash report
+      # is an unreadable stack trace. APK and AAB share one symbols directory so
+      # either artifact can be symbolicated.
+      - name: Build split APKs
+        run: |
+          flutter build apk --release \
+            --obfuscate --split-debug-info=build/debug-info \
+            --build-name=${{ steps.version.outputs.version }} \
+            --build-number=${{ github.run_number }} \
+            --split-per-abi
+
+      - name: Build App Bundle
+        run: |
+          flutter build appbundle --release \
+            --obfuscate --split-debug-info=build/debug-info \
+            --build-name=${{ steps.version.outputs.version }} \
+            --build-number=${{ github.run_number }}
+
+      - name: Collect artifacts
+        run: |
+          mkdir -p artifacts
+          VERSION="${{ steps.version.outputs.version }}"
+
+          for apk in build/app/outputs/flutter-apk/app-*-release.apk; do
+            [ -f "$apk" ] || continue
+            arch=$(basename "$apk" | sed -E 's/app-(.*)-release\.apk/\1/')
+            cp "$apk" "artifacts/BharaKoto-$VERSION-$arch.apk"
+          done
+
+          cp build/app/outputs/bundle/release/app-release.aab \
+             "artifacts/BharaKoto-$VERSION.aab"
+
+          ls -la artifacts/
+
+      # Keep these. De-symbolicate a crash later with:
+      #   flutter symbolize -i stack.txt -d app.android-arm64.symbols
+      - name: Upload de-obfuscation symbols
+        uses: actions/upload-artifact@v4
+        with:
+          name: debug-symbols-v${{ steps.version.outputs.version }}-${{ github.run_number }}
+          path: build/debug-info
+          retention-days: 90
+          if-no-files-found: warn
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: bhara-koto-v${{ steps.version.outputs.version }}
+          path: artifacts/*
+          retention-days: 90
+          if-no-files-found: error
+
+      # Prefer CHANGELOG.md's top section; otherwise list commits since the
+      # previous tag.
+      - name: Build release notes
+        if: github.ref_type == 'tag'
+        run: |
+          NOTES=""
+          if [ -f CHANGELOG.md ]; then
+            NOTES=$(awk '/^## / {if (p) exit; p=1; print; next} p' CHANGELOG.md)
+          fi
+          if [ -z "$NOTES" ]; then
+            PREV_TAG=$(git describe --tags --abbrev=0 "${GITHUB_REF_NAME}^" 2>/dev/null || echo "")
+            if [ -n "$PREV_TAG" ]; then
+              NOTES=$(git log "${PREV_TAG}..HEAD" --pretty=format:'- %s')
+            else
+              NOTES=$(git log -n 20 --pretty=format:'- %s')
+            fi
+          fi
+          {
+            echo "$NOTES"
+            echo
+            if [ "${{ steps.signing.outputs.signed }}" != "true" ]; then
+              echo "> ⚠️ Built with debug keys — install for testing only."
+            fi
+            echo "Install the APK matching your phone; \`arm64-v8a\` suits almost all modern devices."
+          } > release_notes.md
+          cat release_notes.md
+
+      - name: Publish GitHub Release
+        if: github.ref_type == 'tag'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: Bhara koto ${{ github.ref_name }}
+          body_path: release_notes.md
+          files: artifacts/*
+          draft: false
+          prerelease: false
