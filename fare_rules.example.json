@@ -1,0 +1,11 @@
+{
+  "fares": {
+    "local":     { "rate_per_km": 2.53, "min_fare": 10.0 },
+    "intercity": { "rate_per_km": 2.43, "min_fare": 10.0 }
+  },
+
+  "version": "2026-07",
+  "updated_at": "2026-07-01",
+  "notice_en": "Rates revised by BRTA on 1 July 2026.",
+  "notice_bn": "১ জুলাই ২০২৬ থেকে বিআরটিএ নতুন ভাড়া নির্ধারণ করেছে।"
+}

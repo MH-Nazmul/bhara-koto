@@ -1,0 +1,49 @@
+name: bhara_koto
+description: "Bhara Koto — a GPS fare meter for Bangladeshi buses. Tracks distance, applies the official per-km rate, and shows the fare you should pay."
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.12.2
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+
+  cupertino_icons: ^1.0.8
+  geolocator: ^14.0.3        # GPS stream + Haversine distanceBetween()
+  http: ^1.6.0               # fetches fare_rules.json from the GitHub Gist
+  shared_preferences: ^2.5.5 # offline cache for rates / theme / language
+  intl: any                  # number + date formatting, incl. Bangla numerals
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+  flutter_launcher_icons: ^0.14.4
+
+flutter:
+  uses-material-design: true
+  generate: true # builds AppLocalizations from lib/l10n/*.arb
+
+# Launcher icons. Regenerate after changing the source art with:
+#   dart run flutter_launcher_icons
+# The adaptive foreground is a separately prepared file: Android masks away the
+# outer ~34% of an adaptive icon, which would shave the corners off the gold
+# card in the full-bleed artwork.
+flutter_launcher_icons:
+  image_path: "assets/appIcon/icon.png"
+  android: true
+  ios: true
+  remove_alpha_ios: true # the App Store rejects icons with an alpha channel
+  min_sdk_android: 21
+  adaptive_icon_background: "#121D30" # matches the artwork's outer navy
+  adaptive_icon_foreground: "assets/appIcon/icon_foreground.png"
+  web:
+    generate: true
+    image_path: "assets/appIcon/icon.png"
+    background_color: "#121D30"
+    theme_color: "#16D28A"

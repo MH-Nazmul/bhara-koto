@@ -1,0 +1,91 @@
+{
+  "@@locale": "bn",
+
+  "appName": "ভাড়া কত",
+  "appTagline": "বাসের ভাড়ার মিটার",
+
+  "startJourney": "যাত্রা শুরু",
+  "endJourney": "যাত্রা শেষ",
+  "newTrip": "নতুন যাত্রা",
+  "stillMoving": "এখনো চলছি",
+
+  "statusIdle": "প্রস্তুত",
+  "statusLocking": "জিপিএস খোঁজা হচ্ছে",
+  "statusTracking": "চলছে",
+  "statusPaused": "থেমে আছে",
+  "statusFinished": "যাত্রা শেষ",
+
+  "labelDistance": "দূরত্ব",
+  "labelDuration": "সময়",
+  "labelSpeed": "গতি",
+  "labelRatePerKm": "প্রতি কিমি",
+  "labelMinFare": "সর্বনিম্ন",
+
+  "unitKm": "কিমি",
+  "unitKmh": "কিমি/ঘণ্টা",
+  "unitTaka": "৳",
+
+  "minFareApplied": "সর্বনিম্ন ভাড়া প্রযোজ্য",
+  "fareBreakdown": "{distance} কিমি × ৳{rate}",
+
+  "arrivedTitle": "মনে হচ্ছে আপনি থেমেছেন",
+  "arrivedBody": "এটাই আপনার ভাড়া। নামার সময় যাত্রা শেষ চাপুন।",
+
+  "weakSignal": "জিপিএস সিগন্যাল দুর্বল",
+  "accuracyMeters": "±{meters} মি",
+
+  "settings": "সেটিংস",
+  "sectionFare": "ভাড়ার হার",
+  "sectionAppearance": "চেহারা",
+  "sectionAbout": "অ্যাপ সম্পর্কে",
+
+  "language": "ভাষা",
+  "languageEnglish": "English",
+  "languageBangla": "বাংলা",
+
+  "theme": "থিম",
+  "themeSystem": "সিস্টেম",
+  "themeLight": "লাইট",
+  "themeDark": "ডার্ক",
+  "sourceRemote": "সার্ভার",
+  "sourceCached": "অফলাইন",
+  "sourceManual": "নিজের হার",
+  "sourceDefault": "ডিফল্ট",
+
+  "lastSynced": "সর্বশেষ সিঙ্ক {time}",
+  "neverSynced": "কখনো সিঙ্ক হয়নি",
+
+  "editRates": "নিজে হার ঠিক করুন",
+  "editRatesHint": "সরকার ভাড়া বদলালে সার্ভার হালনাগাদের আগেই এটি ব্যবহার করুন।",
+  "manualBannerTitle": "নিজে দেওয়া হার চলছে",
+  "manualBannerBody": "ফিরে না যাওয়া পর্যন্ত সার্ভারের হালনাগাদ উপেক্ষা করা হবে।",
+  "useServerRates": "সার্ভারের হার ব্যবহার করুন",
+
+  "fieldRatePerKm": "প্রতি কিলোমিটার ভাড়া",
+  "fieldMinFare": "সর্বনিম্ন ভাড়া",
+  "invalidNumber": "০ এর বেশি একটি সংখ্যা দিন",
+  "save": "সংরক্ষণ",
+  "cancel": "বাতিল",
+  "close": "বন্ধ",
+
+  "permissionTitle": "লোকেশন অনুমতি দরকার",
+  "permissionBody": "ভাড়া কত জিপিএস দিয়ে দূরত্ব মাপে। কোনো তথ্য ফোনের বাইরে যায় না।",
+  "permissionGrant": "লোকেশন অনুমতি দিন",
+  "permissionDeniedForever": "এই অ্যাপের জন্য লোকেশন বন্ধ করা আছে। সিস্টেম সেটিংস থেকে চালু করুন।",
+  "openAppSettings": "অ্যাপ সেটিংস খুলুন",
+  "serviceDisabledTitle": "লোকেশন বন্ধ আছে",
+  "serviceDisabledBody": "মিটার চালু করতে লোকেশন / জিপিএস চালু করুন।",
+  "openLocationSettings": "লোকেশন চালু করুন",
+
+  "version": "সংস্করণ {version}",
+  "disclaimer": "দূরত্ব জিপিএস থেকে আসে, তাই ভাড়া কাছাকাছি হিসাব — সরকারি রসিদ নয়।",
+  "startHint": "বাসে ওঠার সময় শুরু চাপুন।",
+
+  "fareType": "বাসের ধরন",
+  "profileLocal": "লোকাল",
+  "profileIntercity": "দূরপাল্লা",
+  "profileLocalHint": "জেলার ভিতরে",
+  "profileIntercityHint": "এক জেলা থেকে অন্য জেলায়",
+  "editRatesFor": "“{profile}” হার ঠিক করুন",
+  "inUse": "চালু"
+}

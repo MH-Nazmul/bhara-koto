@@ -1,0 +1,106 @@
+{
+  "@@locale": "en",
+
+  "appName": "Bhara koto",
+  "appTagline": "Bus fare meter",
+
+  "startJourney": "Start Journey",
+  "endJourney": "End Journey",
+  "newTrip": "New Trip",
+  "stillMoving": "Still moving",
+
+  "statusIdle": "Ready",
+  "statusLocking": "Finding GPS",
+  "statusTracking": "Tracking",
+  "statusPaused": "Stopped",
+  "statusFinished": "Trip ended",
+
+  "labelDistance": "Distance",
+  "labelDuration": "Duration",
+  "labelSpeed": "Speed",
+  "labelRatePerKm": "Rate / km",
+  "labelMinFare": "Minimum",
+
+  "unitKm": "km",
+  "unitKmh": "km/h",
+  "unitTaka": "৳",
+
+  "minFareApplied": "Minimum fare applied",
+  "fareBreakdown": "{distance} km × ৳{rate}",
+  "@fareBreakdown": {
+    "placeholders": { "distance": { "type": "String" }, "rate": { "type": "String" } }
+  },
+
+  "arrivedTitle": "Looks like you've stopped",
+  "arrivedBody": "This is your fare. Tap End Journey when you get off.",
+
+  "weakSignal": "Weak GPS signal",
+  "accuracyMeters": "±{meters} m",
+  "@accuracyMeters": {
+    "placeholders": { "meters": { "type": "String" } }
+  },
+
+  "settings": "Settings",
+  "sectionFare": "Fare rates",
+  "sectionAppearance": "Appearance",
+  "sectionAbout": "About",
+
+  "language": "Language",
+  "languageEnglish": "English",
+  "languageBangla": "বাংলা",
+
+  "theme": "Theme",
+  "themeSystem": "System",
+  "themeLight": "Light",
+  "themeDark": "Dark",
+  "sourceRemote": "Server",
+  "sourceCached": "Offline",
+  "sourceManual": "Manual",
+  "sourceDefault": "Default",
+
+  "lastSynced": "Last synced {time}",
+  "@lastSynced": {
+    "placeholders": { "time": { "type": "String" } }
+  },
+  "neverSynced": "Never synced",
+
+  "editRates": "Edit rates manually",
+  "editRatesHint": "Use this if the government changes the fare before the server does.",
+  "manualBannerTitle": "Manual rates are in use",
+  "manualBannerBody": "Server updates are ignored until you switch back.",
+  "useServerRates": "Use server rates",
+
+  "fieldRatePerKm": "Rate per kilometre",
+  "fieldMinFare": "Minimum fare",
+  "invalidNumber": "Enter a number greater than 0",
+  "save": "Save",
+  "cancel": "Cancel",
+  "close": "Close",
+
+  "permissionTitle": "Location access needed",
+  "permissionBody": "Bhara Koto measures your trip distance with GPS. Nothing leaves your phone.",
+  "permissionGrant": "Allow location",
+  "permissionDeniedForever": "Location is blocked for this app. Enable it from system settings.",
+  "openAppSettings": "Open app settings",
+  "serviceDisabledTitle": "Location is switched off",
+  "serviceDisabledBody": "Turn on Location / GPS to start the meter.",
+  "openLocationSettings": "Turn on location",
+
+  "version": "Version {version}",
+  "@version": {
+    "placeholders": { "version": { "type": "String" } }
+  },
+  "disclaimer": "Distance comes from GPS, so the fare is a close estimate — not an official receipt.",
+  "startHint": "Tap start as you get on the bus.",
+
+  "fareType": "Bus type",
+  "profileLocal": "Local",
+  "profileIntercity": "Long distance",
+  "profileLocalHint": "Within the district",
+  "profileIntercityHint": "Between districts",
+  "editRatesFor": "Edit “{profile}” rates",
+  "@editRatesFor": {
+    "placeholders": { "profile": { "type": "String" } }
+  },
+  "inUse": "In use"
+}
