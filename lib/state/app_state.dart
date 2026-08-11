@@ -59,6 +59,7 @@ class AppState extends ChangeNotifier {
         last != null && DateTime.now().difference(last) < kConfigRefreshInterval;
     return verifiedRecently ? FareSource.remote : FareSource.cached;
   }
+  StorageService get storage => _storage;
   bool get manualEnabled => _manualEnabled;
   SyncStatus get syncStatus => _syncStatus;
   ConfigFailure? get lastFailure => _lastFailure;
@@ -66,6 +67,8 @@ class AppState extends ChangeNotifier {
   ThemeMode get themeMode => _themeMode;
   String? get languageCode => _languageCode;
   Locale? get locale => _languageCode == null ? null : Locale(_languageCode!);
+  /// Feature flag for crowdsourced overcharge reporting (disabled until remote database is set up).
+  bool get enableOverchargeReporting => false;
 
   // ------------------------------------------------------------- lifecycle ---
 

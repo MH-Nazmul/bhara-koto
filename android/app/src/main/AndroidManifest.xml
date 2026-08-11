@@ -3,6 +3,11 @@
     <!-- The meter measures distance from GPS fixes. -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
+    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION"/>
+
+    <!-- Display over other apps (System Overlay) permission -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW"/>
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
 
     <!-- Keeps counting while the passenger's screen is off, via geolocator's
          foreground service. FOREGROUND_SERVICE_LOCATION is required from

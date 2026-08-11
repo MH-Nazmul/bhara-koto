@@ -50,6 +50,8 @@ abstract final class PrefKeys {
   static const fareProfile = 'fare.profile';
   static const themeMode = 'ui.theme_mode';
   static const languageCode = 'ui.language_code';
+  static const tripHistory = 'trip.history';
+  static const overchargeReports = 'overcharge.reports';
 }
 
 /// ---------------------------------------------------------------------------

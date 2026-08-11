@@ -75,6 +75,7 @@ class FareConfig {
     required this.local,
     required this.intercity,
     this.source = FareSource.fallback,
+    this.detectVehicleSpeedKmh = 15.0,
     this.version,
     this.updatedAt,
     this.noticeEn,
@@ -85,6 +86,9 @@ class FareConfig {
   final FareRate local;
   final FareRate intercity;
   final FareSource source;
+
+  /// Speed threshold in km/h to auto-detect vehicle movement and show popup.
+  final double detectVehicleSpeedKmh;
 
   /// Free-form label from the Gist, e.g. "2026-07" — handy for spotting stale
   /// rules at a glance.
@@ -103,6 +107,7 @@ class FareConfig {
       ratePerKm: kFallbackIntercityRatePerKm,
       minFare: kFallbackIntercityMinFare,
     ),
+    detectVehicleSpeedKmh: 15.0,
   );
 
   FareRate rateFor(FareProfile profile) => switch (profile) {
@@ -144,10 +149,19 @@ class FareConfig {
       intercityRate = flat;
     }
 
+    double speedThreshold = 15.0;
+    final detectJson = json['detect_vehicle'];
+    if (detectJson is Map<String, dynamic>) {
+      speedThreshold = _readNumber(detectJson, const ['speed_threshold_kmh', 'speedThresholdKmh', 'speed_threshold']) ?? 15.0;
+    } else if (json.containsKey('detect_vehicle_speed')) {
+      speedThreshold = _readNumber(json, const ['detect_vehicle_speed']) ?? 15.0;
+    }
+
     return FareConfig(
       local: localRate,
       intercity: intercityRate,
       source: source,
+      detectVehicleSpeedKmh: speedThreshold,
       version: _readString(json, const ['version']),
       updatedAt: DateTime.tryParse(_readString(json, const ['updated_at', 'updatedAt']) ?? ''),
       noticeEn: _readString(json, const ['notice_en', 'noticeEn', 'notice']),
@@ -160,6 +174,9 @@ class FareConfig {
         'fares': {
           FareProfile.local.key: local.toJson(),
           FareProfile.intercity.key: intercity.toJson(),
+        },
+        'detect_vehicle': {
+          'speed_threshold_kmh': detectVehicleSpeedKmh,
         },
         if (version != null) 'version': version,
         if (updatedAt != null) 'updated_at': updatedAt!.toIso8601String(),

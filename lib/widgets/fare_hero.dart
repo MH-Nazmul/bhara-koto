@@ -16,6 +16,8 @@ class FareHero extends StatelessWidget {
     required this.caption,
     required this.metrics,
     required this.dialProgress,
+    this.meteredAmount,
+    this.isMinimumApplied = false,
     this.trailing,
     this.captionColor,
     this.highlight = false,
@@ -26,6 +28,8 @@ class FareHero extends StatelessWidget {
   final Widget? trailing;
   final String currency;
   final String amount;
+  final String? meteredAmount;
+  final bool isMinimumApplied;
   final String caption;
   final Color? captionColor;
   final Widget metrics;
@@ -67,31 +71,72 @@ class FareHero extends StatelessWidget {
                 children: [
                   FittedBox(
                     fit: BoxFit.scaleDown,
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Padding(
-                          padding: const EdgeInsets.only(top: 9, right: 3),
-                          child: Text(
-                            currency,
-                            style: text.displayMedium?.copyWith(
-                              fontSize: 24,
-                              color: dimmed ? bk.textFaint : bk.textSecondary,
-                              fontWeight: FontWeight.w600,
-                            ),
+                    child: isMinimumApplied && meteredAmount != null
+                        ? Row(
+                            crossAxisAlignment: CrossAxisAlignment.center,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                '$currency$meteredAmount',
+                                style: text.displayLarge?.copyWith(
+                                  fontSize: 34,
+                                  letterSpacing: -1.2,
+                                  color: bk.textSecondary,
+                                  decoration: TextDecoration.lineThrough,
+                                  decorationColor: Colors.redAccent,
+                                  decorationThickness: 2.5,
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              Icon(Icons.arrow_forward_rounded, size: 20, color: bk.warning),
+                              const SizedBox(width: 6),
+                              Padding(
+                                padding: const EdgeInsets.only(top: 4, right: 3),
+                                child: Text(
+                                  currency,
+                                  style: text.displayMedium?.copyWith(
+                                    fontSize: 22,
+                                    color: amountColor,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                              Text(
+                                amount,
+                                style: text.displayLarge?.copyWith(
+                                  fontSize: 52,
+                                  letterSpacing: -2.0,
+                                  color: amountColor,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
+                          )
+                        : Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Padding(
+                                padding: const EdgeInsets.only(top: 9, right: 3),
+                                child: Text(
+                                  currency,
+                                  style: text.displayMedium?.copyWith(
+                                    fontSize: 24,
+                                    color: dimmed ? bk.textFaint : bk.textSecondary,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                              Text(
+                                amount,
+                                style: text.displayLarge?.copyWith(
+                                  fontSize: 58,
+                                  letterSpacing: -2.4,
+                                  color: amountColor,
+                                ),
+                              ),
+                            ],
                           ),
-                        ),
-                        Text(
-                          amount,
-                          style: text.displayLarge?.copyWith(
-                            fontSize: 58,
-                            letterSpacing: -2.4,
-                            color: amountColor,
-                          ),
-                        ),
-                      ],
-                    ),
                   ),
                   const SizedBox(height: 6),
                   AnimatedSwitcher(

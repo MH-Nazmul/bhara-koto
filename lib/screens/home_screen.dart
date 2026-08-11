@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 
 import '../l10n/app_localizations.dart';
 import '../models/fare_config.dart';
+import '../models/trip_history_model.dart';
 import '../services/location_service.dart';
+import '../services/overlay_service.dart';
 import '../state/app_scope.dart';
 import '../state/app_state.dart';
 import '../state/trip_state.dart';
@@ -11,12 +13,17 @@ import '../utils/calculator.dart';
 import '../utils/formatters.dart';
 import '../widgets/blocker_sheet.dart';
 import '../widgets/fare_hero.dart';
+import '../widgets/fare_receipt_dialog.dart';
 import '../widgets/metric_row.dart';
 import '../widgets/notice_banner.dart';
 import '../widgets/primary_action_button.dart';
 import '../widgets/rate_strip.dart';
 import '../widgets/segmented_control.dart';
+import '../widgets/speedometer_widget.dart';
 import '../widgets/status_pill.dart';
+import 'bus_routes_screen.dart';
+import 'history_screen.dart';
+import 'overcharge_screen.dart';
 import 'settings_screen.dart';
 
 /// One screen, no scrolling: dense chrome at the edges and a fare that owns the
@@ -32,11 +39,157 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
+  bool _popupShown = false;
+  bool _initializedPermissions = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _requestFirstLaunchPermissions();
+      _setupNativeOverlayListener();
+    });
+  }
+
+  void _setupNativeOverlayListener() {
+    final scope = AppScope.of(context);
+    OverlayService.listenNativeOverlayEvents(
+      onStartTrip: () async {
+        final t = AppLocalizations.of(context);
+        await scope.trip.start(
+          notificationTitle: t.appName,
+          notificationText: t.statusTracking,
+        );
+      },
+      onStopTrip: () async {
+        await scope.trip.stop();
+      },
+    );
+  }
+
+  Future<void> _requestFirstLaunchPermissions() async {
+    if (_initializedPermissions) return;
+    _initializedPermissions = true;
+
+    // 1. Request standard Location permission automatically on first launch
+    final readiness = await widget.locationService.ensureReady();
+    if (readiness == LocationReadiness.ready && mounted) {
+      final app = AppScope.of(context).app;
+      final lang = app.languageCode ?? Localizations.localeOf(context).languageCode;
+      AppScope.of(context).trip.startStandbyMonitoring();
+      OverlayService.startNativeMotionMonitoring(app.config.detectVehicleSpeedKmh, lang);
+    }
+
+    // 2. Check if Display over other apps (Overlay) is granted; if not, prompt user directly
+    final overlayGranted = await OverlayService.checkOverlayPermission();
+    if (!overlayGranted && mounted) {
+      final isBangla = Localizations.localeOf(context).languageCode == 'bn';
+      showDialog<void>(
+        context: context,
+        builder: (ctx) {
+          final bk = ctx.bk;
+          final text = Theme.of(ctx).textTheme;
+          return AlertDialog(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            title: Row(
+              children: [
+                Icon(Icons.layers_rounded, color: bk.accent),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    isBangla ? 'পপ-আপ মিটার পারমিশন' : 'Display Over Apps Permission',
+                    style: text.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ],
+            ),
+            content: Text(
+              isBangla
+                  ? 'যানবাহনে ওঠার সাথে সাথে স্বয়ংক্রিয় পপ-আপ মিটার দেখতে "Display over other apps" পারমিশন এনাবল করুন।'
+                  : 'To enable automatic floating meter pop-ups when entering a vehicle, please allow "Display over other apps" permission.',
+              style: text.bodyMedium?.copyWith(color: bk.textSecondary),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: Text(isBangla ? 'পরে করুন' : 'Later'),
+              ),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: bk.accent,
+                  foregroundColor: Colors.white,
+                ),
+                onPressed: () async {
+                  Navigator.pop(ctx);
+                  await OverlayService.requestOverlayPermission();
+                },
+                child: Text(isBangla ? 'অন করুন' : 'Enable Now'),
+              ),
+            ],
+          );
+        },
+      );
+    }
+  }
+
+  void _checkMotionDetection(AppState app, TripState trip) {
+    if (_popupShown || trip.phase != TripPhase.idle) return;
+    final currentSpeedKmh = trip.speedMps * 3.6;
+    final thresholdKmh = app.config.detectVehicleSpeedKmh;
+
+    if (currentSpeedKmh >= thresholdKmh && currentSpeedKmh > 0) {
+      _popupShown = true;
+      final t = AppLocalizations.of(context);
+      final lang = app.languageCode ?? Localizations.localeOf(context).languageCode;
+      final isBangla = lang == 'bn';
+
+      // 1. Trigger Heads-Up High Priority Notification
+      OverlayService.showNotification(
+        title: isBangla ? '🚌 যানবাহনে গতির শনাক্তকরণ!' : '🚌 Vehicle Movement Detected!',
+        body: isBangla
+            ? 'আপনার বর্তমান গতি: ${currentSpeedKmh.toStringAsFixed(1)} km/h। স্পর্শ করে ভাড়া গণনা শুরু করুন।'
+            : 'Speed: ${currentSpeedKmh.toStringAsFixed(1)} km/h. Tap to start fare meter.',
+        lang: lang,
+      );
+
+      // 2. Show in-app dialog if app is in foreground
+      OverlayService.showFloatingPopup(
+        context: context,
+        currentSpeedKmh: currentSpeedKmh,
+        thresholdKmh: thresholdKmh,
+        onStartJourneyPressed: () async {
+          await trip.start(
+            notificationTitle: t.appName,
+            notificationText: t.statusTracking,
+          );
+        },
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final scope = AppScope.of(context);
     final t = AppLocalizations.of(context);
     final bk = context.bk;
+
+    _checkMotionDetection(scope.app, scope.trip);
+
+    if (scope.trip.isActive) {
+      final fare = FareCalculator.compute(
+        distanceMeters: scope.trip.distanceMeters,
+        rate: scope.app.activeRate,
+      );
+      final lang = scope.app.languageCode ?? Localizations.localeOf(context).languageCode;
+      OverlayService.updateNativeMeterOverlay(
+        fareTotal: '৳ ${Fmt.money(fare.total, lang)}',
+        distanceKm: Fmt.distanceKm(scope.trip.distanceMeters, lang),
+        speedKmh: Fmt.speedKmh(scope.trip.speedMps, lang),
+        lang: lang,
+      );
+    } else {
+      OverlayService.dismissNativeOverlay();
+    }
 
     return Scaffold(
       body: SafeArea(
@@ -146,6 +299,38 @@ class _Header extends StatelessWidget {
             tooltip: t.theme,
             onPressed: () => app.setThemeMode(isDark ? ThemeMode.light : ThemeMode.dark),
           ),
+          CompactIconButton(
+            icon: Icons.history_rounded,
+            tooltip: isBangla ? 'ভ্রমণ ইতিহাস' : 'History',
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => HistoryScreen(
+                  storage: AppScope.of(context).app.storage,
+                  config: app.config,
+                  profile: app.profile,
+                ),
+              ),
+            ),
+          ),
+          CompactIconButton(
+            icon: Icons.alt_route_rounded,
+            tooltip: isBangla ? 'বাস রুট চাট' : 'Bus Routes',
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => BusRoutesScreen(config: app.config),
+              ),
+            ),
+          ),
+          if (app.enableOverchargeReporting)
+            CompactIconButton(
+              icon: Icons.report_problem_rounded,
+              tooltip: isBangla ? 'ভাড়ার অভিযোগ' : 'Overcharge Reports',
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => OverchargeScreen(storage: AppScope.of(context).app.storage),
+                ),
+              ),
+            ),
           CompactIconButton(
             icon: Icons.tune_rounded,
             tooltip: t.settings,
@@ -277,36 +462,75 @@ class _Meter extends StatelessWidget {
     // The ring fills once per kilometre, which is exactly the cadence at which
     // the fare steps up.
     final km = trip.distanceMeters / 1000;
+    final isBangla = lang == 'bn';
 
-    return FareHero(
-      statusPill: _statusPill(context, trip.phase),
-      trailing: trip.isActive ? _AccuracyChip(trip: trip) : null,
-      dialProgress: km - km.floorToDouble(),
-      currency: t.unitTaka,
-      amount: Fmt.money(isIdle ? 0 : fare.total, lang),
-      caption: caption,
-      captionColor: captionColor,
-      highlight: highlight,
-      dimmed: isIdle,
-      metrics: MetricRow(
-        cells: [
-          MetricCell(
-            label: t.labelDistance,
-            value: Fmt.distanceKm(trip.distanceMeters, lang),
-            unit: t.unitKm,
-            emphasis: trip.phase == TripPhase.running,
+    return Column(
+      children: [
+        if (trip.isActive) SpeedometerWidget(speedMps: speedMps),
+        Expanded(
+          child: FareHero(
+            statusPill: _statusPill(context, trip.phase),
+            trailing: trip.isActive
+                ? _AccuracyChip(trip: trip)
+                : (trip.phase == TripPhase.finished
+                    ? TextButton.icon(
+                        icon: const Icon(Icons.receipt_rounded, size: 16),
+                        label: Text(isBangla ? 'রসিদ' : 'Receipt'),
+                        onPressed: () {
+                          showDialog<void>(
+                            context: context,
+                            builder: (_) => FareReceiptDialog(
+                              distanceMeters: trip.distanceMeters,
+                              fareProfile: app.profile,
+                              ratePerKm: app.activeRate.ratePerKm,
+                              minFare: app.activeRate.minFare,
+                              startedAt: trip.startedAt ?? DateTime.now(),
+                              endedAt: trip.endedAt ?? DateTime.now(),
+                              onReportOverchargePressed: app.enableOverchargeReporting
+                                  ? () {
+                                      Navigator.of(context).push(
+                                        MaterialPageRoute<void>(
+                                          builder: (_) => OverchargeScreen(storage: app.storage),
+                                        ),
+                                      );
+                                    }
+                                  : null,
+                            ),
+                          );
+                        },
+                      )
+                    : null),
+            dialProgress: km - km.floorToDouble(),
+            currency: t.unitTaka,
+            amount: Fmt.money(isIdle ? 0 : fare.total, lang),
+            meteredAmount: isIdle ? null : Fmt.money(fare.metered, lang),
+            isMinimumApplied: !isIdle && fare.minimumApplied,
+            caption: caption,
+            captionColor: captionColor,
+            highlight: highlight,
+            dimmed: isIdle,
+            metrics: MetricRow(
+              cells: [
+                MetricCell(
+                  label: t.labelDistance,
+                  value: Fmt.distanceKm(trip.distanceMeters, lang),
+                  unit: t.unitKm,
+                  emphasis: trip.phase == TripPhase.running,
+                ),
+                MetricCell(
+                  label: t.labelDuration,
+                  value: Fmt.duration(trip.elapsed, lang),
+                ),
+                MetricCell(
+                  label: t.labelSpeed,
+                  value: Fmt.speedKmh(speedMps, lang),
+                  unit: t.unitKmh,
+                ),
+              ],
+            ),
           ),
-          MetricCell(
-            label: t.labelDuration,
-            value: Fmt.duration(trip.elapsed, lang),
-          ),
-          MetricCell(
-            label: t.labelSpeed,
-            value: Fmt.speedKmh(speedMps, lang),
-            unit: t.unitKmh,
-          ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
@@ -479,6 +703,27 @@ class _ActionBarState extends State<_ActionBar> {
     }
   }
 
+  Future<void> _stop() async {
+    final scope = AppScope.of(context);
+    final breakdown = FareCalculator.compute(
+      distanceMeters: widget.trip.distanceMeters,
+      rate: scope.app.activeRate,
+    );
+
+    final item = TripHistoryItem(
+      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      startedAt: widget.trip.startedAt ?? DateTime.now(),
+      endedAt: DateTime.now(),
+      distanceMeters: widget.trip.distanceMeters,
+      fareTotal: breakdown.total,
+      profile: scope.app.profile,
+      routePoints: widget.trip.routePoints,
+    );
+
+    await scope.app.storage.addTripHistoryItem(item);
+    await widget.trip.stop();
+  }
+
   @override
   Widget build(BuildContext context) {
     final t = AppLocalizations.of(context);
@@ -508,7 +753,7 @@ class _ActionBarState extends State<_ActionBar> {
           icon: Icons.stop_rounded,
           background: bk.danger,
           foreground: Colors.white,
-          onPressed: trip.stop,
+          onPressed: _stop,
         ),
     };
   }

@@ -37,6 +37,21 @@ class LocationService {
   /// A filtered position stream tuned for a bus ride: high accuracy, but only
   /// woken every few seconds / metres so a long trip doesn't flatten the phone.
   ///
+  /// Stream used during standby monitoring to keep background GPS awake when app is minimized.
+  Stream<Position> standbyPositions({
+    required String notificationTitle,
+    required String notificationText,
+  }) {
+    return Geolocator.getPositionStream(
+      locationSettings: _settingsFor(
+        notificationTitle,
+        notificationText,
+        distanceFilter: 0,
+        interval: const Duration(seconds: 1),
+      ),
+    );
+  }
+
   /// On Android a foreground-service notification keeps the meter alive while
   /// the passenger's screen is off; [notificationTitle]/[notificationText] are
   /// passed in already localised.
@@ -61,12 +76,19 @@ class LocationService {
         b.longitude,
       );
 
-  LocationSettings _settingsFor(String title, String text) {
+  LocationSettings _settingsFor(
+    String title,
+    String text, {
+    int? distanceFilter,
+    Duration? interval,
+  }) {
+    final filter = distanceFilter ?? GpsTuning.distanceFilterMeters;
+    final intervalDuration = interval ?? GpsTuning.androidInterval;
     if (defaultTargetPlatform == TargetPlatform.android) {
       return AndroidSettings(
         accuracy: LocationAccuracy.high,
-        distanceFilter: GpsTuning.distanceFilterMeters,
-        intervalDuration: GpsTuning.androidInterval,
+        distanceFilter: filter,
+        intervalDuration: intervalDuration,
         foregroundNotificationConfig: ForegroundNotificationConfig(
           notificationTitle: title,
           notificationText: text,
@@ -79,16 +101,16 @@ class LocationService {
     if (defaultTargetPlatform == TargetPlatform.iOS) {
       return AppleSettings(
         accuracy: LocationAccuracy.high,
-        distanceFilter: GpsTuning.distanceFilterMeters,
+        distanceFilter: filter,
         activityType: ActivityType.automotiveNavigation,
         pauseLocationUpdatesAutomatically: false,
         showBackgroundLocationIndicator: true,
         allowBackgroundLocationUpdates: true,
       );
     }
-    return const LocationSettings(
+    return LocationSettings(
       accuracy: LocationAccuracy.high,
-      distanceFilter: GpsTuning.distanceFilterMeters,
+      distanceFilter: filter,
     );
   }
 }

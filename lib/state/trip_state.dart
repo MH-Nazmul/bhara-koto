@@ -3,7 +3,9 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:geolocator/geolocator.dart';
 
+import '../models/trip_history_model.dart';
 import '../services/location_service.dart';
+import '../services/overlay_service.dart';
 import '../utils/constants.dart';
 
 enum TripPhase {
@@ -35,11 +37,14 @@ class TripState extends ChangeNotifier {
   final LocationService _location;
 
   StreamSubscription<Position>? _subscription;
+  StreamSubscription<Position>? _standbySubscription;
+  Position? _lastStandbyPosition;
   Timer? _ticker;
 
   /// Last position accepted as a real place — the origin of the next segment.
   Position? _anchor;
   DateTime? _lastMovementAt;
+  DateTime? _lastFixAt;
 
   TripPhase _phase = TripPhase.idle;
   double _distanceMeters = 0;
@@ -48,14 +53,18 @@ class TripState extends ChangeNotifier {
   DateTime? _startedAt;
   DateTime? _endedAt;
   LocationReadiness? _blocker;
+  final List<LatLngPoint> _routePoints = [];
 
   // --------------------------------------------------------------- getters ---
 
   TripPhase get phase => _phase;
   double get distanceMeters => _distanceMeters;
-  double get speedMps => _phase == TripPhase.running ? _speedMps : 0;
+  double get speedMps => _speedMps;
   double? get accuracyMeters => _accuracyMeters;
   LocationReadiness? get blocker => _blocker;
+  List<LatLngPoint> get routePoints => List.unmodifiable(_routePoints);
+  DateTime? get startedAt => _startedAt;
+  DateTime? get endedAt => _endedAt;
 
   bool get isActive => _phase == TripPhase.acquiring ||
       _phase == TripPhase.running ||
@@ -75,6 +84,49 @@ class TripState extends ChangeNotifier {
 
   // ------------------------------------------------------------- lifecycle ---
 
+  /// Starts passive location monitoring during standby (idle) mode to detect vehicle motion.
+  Future<void> startStandbyMonitoring({
+    String notificationTitle = 'Bhara Koto',
+    String notificationText = 'Monitoring movement speed...',
+  }) async {
+    if (isActive || _standbySubscription != null) return;
+    final readiness = await _location.ensureReady();
+    if (readiness != LocationReadiness.ready) return;
+
+    try {
+      _standbySubscription = _location
+          .standbyPositions(
+            notificationTitle: notificationTitle,
+            notificationText: notificationText,
+          )
+          .listen(_onStandbyPosition, onError: (_) {});
+    } on Object {
+      // Passive standby failure is safe to ignore
+    }
+  }
+
+  void _onStandbyPosition(Position position) {
+    if (isActive) return;
+    if (position.accuracy > GpsTuning.maxAccuracyMeters) return;
+
+    _lastFixAt = DateTime.now();
+    double speed = position.speed;
+    final last = _lastStandbyPosition;
+    if ((!speed.isFinite || speed <= 0) && last != null) {
+      final meters = LocationService.metersBetween(last, position);
+      final seconds = position.timestamp.difference(last.timestamp).inMilliseconds / 1000;
+      if (seconds > 0 && meters >= 0.8) {
+        speed = meters / seconds;
+      } else {
+        speed = 0.0;
+      }
+    }
+
+    _lastStandbyPosition = position;
+    _speedMps = (speed.isFinite && speed > 0) ? speed : 0.0;
+    notifyListeners();
+  }
+
   /// Opens the GPS stream. [notificationTitle]/[notificationText] are the
   /// already-localised strings for the Android foreground-service notification
   /// that keeps the meter alive with the screen off.
@@ -91,6 +143,9 @@ class TripState extends ChangeNotifier {
       return;
     }
 
+    await _standbySubscription?.cancel();
+    _standbySubscription = null;
+
     _blocker = null;
     _distanceMeters = 0;
     _speedMps = 0;
@@ -99,6 +154,7 @@ class TripState extends ChangeNotifier {
     _startedAt = DateTime.now();
     _endedAt = null;
     _lastMovementAt = _startedAt;
+    _routePoints.clear();
     _phase = TripPhase.acquiring;
     notifyListeners();
 
@@ -111,6 +167,13 @@ class TripState extends ChangeNotifier {
 
     // Drives the clock and the "have we stopped?" test once a second.
     _ticker = Timer.periodic(const Duration(seconds: 1), (_) => _onTick());
+
+    // Immediately inform native Kotlin that trip is active!
+    OverlayService.updateNativeMeterOverlay(
+      fareTotal: '৳ 10.00',
+      distanceKm: '0.00',
+      speedKmh: '0',
+    );
   }
 
   Future<void> stop() async {
@@ -118,6 +181,7 @@ class TripState extends ChangeNotifier {
     _endedAt = DateTime.now();
     _phase = TripPhase.finished;
     await _teardown();
+    OverlayService.dismissNativeOverlay();
     notifyListeners();
   }
 
@@ -133,7 +197,9 @@ class TripState extends ChangeNotifier {
     _endedAt = null;
     _lastMovementAt = null;
     _blocker = null;
+    _routePoints.clear();
     notifyListeners();
+    startStandbyMonitoring();
   }
 
   /// "Still moving" — the passenger overrules the stop detector (crawling
@@ -167,6 +233,7 @@ class TripState extends ChangeNotifier {
       return;
     }
 
+    _lastFixAt = DateTime.now();
     _accuracyMeters = position.accuracy;
     _speedMps = position.speed.isFinite && position.speed > 0 ? position.speed : 0;
 
@@ -175,6 +242,7 @@ class TripState extends ChangeNotifier {
       // First trustworthy fix: this is Point A.
       _anchor = position;
       _lastMovementAt = DateTime.now();
+      _routePoints.add(LatLngPoint(position.latitude, position.longitude));
       _phase = TripPhase.running;
       notifyListeners();
       return;
@@ -200,6 +268,7 @@ class TripState extends ChangeNotifier {
     _distanceMeters += meters;
     _anchor = position;
     _lastMovementAt = DateTime.now();
+    _routePoints.add(LatLngPoint(position.latitude, position.longitude));
     if (_phase != TripPhase.running) _phase = TripPhase.running;
     notifyListeners();
   }
@@ -215,11 +284,19 @@ class TripState extends ChangeNotifier {
   }
 
   void _onTick() {
-    if (!isActive) return;
+    final now = DateTime.now();
+    if (_lastFixAt != null && now.difference(_lastFixAt!) > const Duration(seconds: 3)) {
+      _speedMps = 0;
+    }
+
+    if (!isActive) {
+      notifyListeners();
+      return;
+    }
 
     final since = _lastMovementAt == null
         ? Duration.zero
-        : DateTime.now().difference(_lastMovementAt!);
+        : now.difference(_lastMovementAt!);
 
     if (_phase == TripPhase.running &&
         since > GpsTuning.idleTimeout &&
@@ -237,6 +314,8 @@ class TripState extends ChangeNotifier {
     _ticker = null;
     await _subscription?.cancel();
     _subscription = null;
+    await _standbySubscription?.cancel();
+    _standbySubscription = null;
   }
 
   /// Seconds between two fixes, or 0 when a device reports non-increasing

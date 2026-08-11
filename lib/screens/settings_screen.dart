@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import 'package:geolocator/geolocator.dart';
+
 import '../l10n/app_localizations.dart';
 import '../models/fare_config.dart';
+import '../services/overlay_service.dart';
 import '../state/app_scope.dart';
 import '../state/app_state.dart';
 import '../theme/app_theme.dart';
@@ -60,6 +63,9 @@ class SettingsScreen extends StatelessWidget {
                 onTap: app.useServerRates,
               ),
             ],
+
+            SectionHeading(Localizations.localeOf(context).languageCode == 'bn' ? 'পারমিশন ও ওভারলে সেটিংস' : 'Permissions & Overlay'),
+            const _PermissionsCard(),
 
             SectionHeading(t.sectionAppearance),
             _SettingRow(
@@ -450,4 +456,149 @@ Future<void> _showRateEditor(BuildContext context, AppState app, FareProfile pro
 
   rateController.dispose();
   minController.dispose();
+}
+
+class _PermissionsCard extends StatefulWidget {
+  const _PermissionsCard();
+
+  @override
+  State<_PermissionsCard> createState() => _PermissionsCardState();
+}
+
+class _PermissionsCardState extends State<_PermissionsCard> with WidgetsBindingObserver {
+  bool _overlayGranted = false;
+  bool _locationGranted = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _checkPermissions();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _checkPermissions();
+    }
+  }
+
+  Future<void> _checkPermissions() async {
+    final overlay = await OverlayService.checkOverlayPermission();
+    final locationPerm = await Geolocator.checkPermission();
+    final locGranted = locationPerm == LocationPermission.always || locationPerm == LocationPermission.whileInUse;
+
+    if (mounted) {
+      setState(() {
+        _overlayGranted = overlay;
+        _locationGranted = locGranted;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bk = context.bk;
+    final isBangla = Localizations.localeOf(context).languageCode == 'bn';
+
+    return SurfaceCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _permissionItem(
+            context,
+            icon: Icons.my_location_rounded,
+            title: isBangla ? 'জিপিএস লোকেশন পারমিশন' : 'GPS Location Access',
+            subtitle: isBangla ? 'ভ্রমণে দূরত্ব ও ভাড়া গণনার জন্য' : 'Required to calculate fare and trip distance',
+            isGranted: _locationGranted,
+            onToggle: (val) async {
+              if (!_locationGranted) {
+                await Geolocator.requestPermission();
+              } else {
+                await Geolocator.openAppSettings();
+              }
+              _checkPermissions();
+            },
+          ),
+          Divider(color: bk.hairline, height: 20),
+          _permissionItem(
+            context,
+            icon: Icons.layers_rounded,
+            title: isBangla ? 'অন্যান্য অ্যাপের উপর পপ-আপ (Overlay)' : 'Display Over Other Apps',
+            subtitle: isBangla ? 'বাসে ওঠার গতির পপ-আপ ও মিটার দেখাতে' : 'Required to show motion detection popup & meter over other apps',
+            isGranted: _overlayGranted,
+            onToggle: (val) async {
+              await OverlayService.requestOverlayPermission();
+              _checkPermissions();
+            },
+          ),
+          Divider(color: bk.hairline, height: 20),
+          _permissionItem(
+            context,
+            icon: Icons.notifications_active_rounded,
+            title: isBangla ? 'ব্যাকগ্রাউন্ড নোটিফিকেশন' : 'Background Meter Notification',
+            subtitle: isBangla ? 'স্ক্রিন বন্ধ থাকলেও মিটার সচল রাখে' : 'Keeps meter active when screen is off',
+            isGranted: true,
+            onToggle: (val) async {
+              await OverlayService.openAppSettings();
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _permissionItem(
+    BuildContext context, {
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required bool isGranted,
+    required ValueChanged<bool> onToggle,
+  }) {
+    final bk = context.bk;
+    final text = Theme.of(context).textTheme;
+
+    return Row(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: isGranted ? bk.accentSoft : bk.warningSoft,
+            shape: BoxShape.circle,
+          ),
+          child: Icon(icon, color: isGranted ? bk.accent : bk.warning, size: 20),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: text.bodyMedium?.copyWith(fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                subtitle,
+                style: text.bodySmall?.copyWith(color: bk.textFaint, fontSize: 11),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(width: 8),
+        Switch(
+          value: isGranted,
+          activeColor: bk.accent,
+          onChanged: onToggle,
+        ),
+      ],
+    );
+  }
 }

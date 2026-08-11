@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/fare_config.dart';
+import '../models/overcharge_report_model.dart';
+import '../models/trip_history_model.dart';
 import '../utils/constants.dart';
 
 /// Thin, synchronous-after-init wrapper over SharedPreferences.
@@ -79,7 +81,57 @@ class StorageService {
       ? _prefs.remove(PrefKeys.languageCode)
       : _prefs.setString(PrefKeys.languageCode, code);
 
-  // ---------------------------------------------------------------- inner ---
+  // -------------------------------------------------------------- history ---
+
+  List<TripHistoryItem> readTripHistory() {
+    final raw = _prefs.getString(PrefKeys.tripHistory);
+    if (raw == null || raw.isEmpty) return [];
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is! List) return [];
+      return decoded
+          .map((item) => TripHistoryItem.fromJson(item as Map<String, dynamic>))
+          .toList();
+    } on Object {
+      return [];
+    }
+  }
+
+  Future<void> addTripHistoryItem(TripHistoryItem item) async {
+    final history = readTripHistory();
+    history.insert(0, item); // newest first
+    final encoded = jsonEncode(history.map((e) => e.toJson()).toList());
+    await _prefs.setString(PrefKeys.tripHistory, encoded);
+  }
+
+  Future<void> clearTripHistory() async {
+    await _prefs.remove(PrefKeys.tripHistory);
+  }
+
+  // --------------------------------------------------- overcharge reports ---
+
+  List<OverchargeReport> readOverchargeReports() {
+    final raw = _prefs.getString(PrefKeys.overchargeReports);
+    if (raw == null || raw.isEmpty) {
+      return [];
+    }
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is! List) return [];
+      return decoded
+          .map((item) => OverchargeReport.fromJson(item as Map<String, dynamic>))
+          .toList();
+    } on Object {
+      return [];
+    }
+  }
+
+  Future<void> addOverchargeReport(OverchargeReport report) async {
+    final reports = readOverchargeReports();
+    reports.insert(0, report);
+    final encoded = jsonEncode(reports.map((e) => e.toJson()).toList());
+    await _prefs.setString(PrefKeys.overchargeReports, encoded);
+  }
 
   FareConfig? _readConfig(String key, FareSource source) {
     final raw = _prefs.getString(key);
