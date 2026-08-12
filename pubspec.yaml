@@ -18,6 +18,8 @@ dependencies:
   http: ^1.6.0               # fetches fare_rules.json from the GitHub Gist
   shared_preferences: ^2.5.5 # offline cache for rates / theme / language
   intl: any                  # number + date formatting, incl. Bangla numerals
+  flutter_map: ^8.3.1
+  latlong2: ^0.10.1
 
 dev_dependencies:
   flutter_test:
